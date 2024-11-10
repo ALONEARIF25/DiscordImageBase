@@ -5,14 +5,7 @@ A web-based application for easy drag-and-drop image uploads with a live preview
 ##### Time took: `8hrs`
 
 ---
-<video width="400" autoplay loop muted>
-  <source src="demo/demo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
-
-![Demo](demo/1.png)
-
-
+[![Demo Video](demo/demo121.png)](demo/demo121.mp4)
 
 
 ## Main Features

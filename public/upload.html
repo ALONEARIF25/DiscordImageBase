@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Images to Discord</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Global Styling */
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #1d1f27;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #424175;
+        }
+
+        /* Styling for the upload container */
+        .upload-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px;
+            padding: 50px;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 12px;
+            background-color: #272a38;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .upload-container:hover {
+            transform: scale(1.005);
+        }
+
+        h2 {
+            font-size: 24px;
+            color: #95b2d1;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* Styling for the drag area */
+        .drag-area {
+            width: 100%;
+            min-height: 200px;
+            /* Set a minimum height for the container */
+            border: 2px dashed #95b2d1;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 18px;
+            color: #95b2d1;
+            background-color: #202428;
+            cursor: pointer;
+            transition: 0.3s;
+            padding: 20px;
+            /* Add padding to ensure text is not against the border */
+            word-wrap: break-word;
+            /* Allow long words to break and wrap */
+            white-space: normal;
+            /* Ensure the text wraps to the next line */
+            display: flex;
+            /* Enable flexbox */
+            flex-direction: column;
+            /* Align items in a column */
+            justify-content: center;
+            /* Vertically center the content */
+            align-items: center;
+            /* Horizontally center the content */
+        }
+
+
+
+        .drag-area:hover {
+            background-color: #2e343a;
+        }
+
+        .drag-area.dragging {
+            background-color: #cfe2f3;
+            border-color: #0056b3;
+        }
+
+        /* File Preview Styling */
+        .file-preview {
+            margin-top: 20px;
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-height: 400px;
+            /* Set a max-height for the preview area */
+            overflow-y: auto;
+            /* Add vertical scrolling when the content overflows */
+        }
+
+        .file-preview::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .file-preview::-webkit-scrollbar-track {
+            background-color: #2e343a;
+            border-radius: 10px;
+        }
+
+        .file-preview::-webkit-scrollbar-thumb {
+            background-color: #95b2d1;
+            border-radius: 10px;
+            border: 4px solid #1d1f27;
+        }
+
+        #file-count {
+            margin-top: 10px;
+            background-color: #213a5f;
+            padding: 5px 12px;
+            border-radius: 10px;
+            color: white;
+            font-size: 12px;
+            font-weight: 300;
+        }
+
+
+
+
+        /* Update the file-preview div animation */
+        .file-preview div {
+            position: relative;
+            width: 115px;
+            height: 115px;
+            margin: 10px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* Add separate keyframes for fade in and fade out */
+        @keyframes fadeScaleIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes fadeScaleOut {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+        }
+
+        /* Add these new classes for animations */
+        .preview-item-enter {
+            animation: fadeScaleIn 0.3s forwards;
+        }
+
+        .preview-item-exit {
+            animation: fadeScaleOut 0.3s forwards;
+        }
+
+
+        .file-preview img {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s;
+        }
+
+
+        .file-preview img:hover {
+            transform: scale(1.1);
+        }
+
+        .remove-file {
+            cursor: pointer;
+            color: white;
+            font-size: 11px;
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #383760;
+            padding: 2px 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .remove-file:hover {
+            background-color: #ff5733;
+        }
+
+        /* Button Styling */
+        #upload-button {
+            padding: 10px 20px;
+            background-color: #202428;
+            color: #95b2d1;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        #upload-button:hover {
+            background-color: #191f24;
+        }
+
+        /* Status Message Styling */
+        .status {
+            margin-top: 20px;
+            padding: 5px 10px;
+            font-size: 12px;
+            color: #95b2d1;
+            border-radius: 8px;
+            visibility: hidden;
+            /* Initially hidden */
+            background-size: 200% 200%;
+            /* Enable gradient slide */
+            background-image: linear-gradient(270deg, #213a5f, rgb(0, 0, 0), #213a5f);
+            animation: gradientSlide 3s infinite;
+            /* Apply animation */
+        }
+
+        .status:not(:empty) {
+            visibility: visible;
+            /* Show only when there's content */
+        }
+
+        /* Keyframes for sliding gradient */
+        @keyframes gradientSlide {
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+
+        .error-message {
+            color: #ff6868;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        /* File size display styling */
+        .file-size-display {
+            opacity: 0;
+            /* Initially hidden */
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            color: white;
+            font-size: 12px;
+            background-color: rgba(56, 55, 96, 0.2);
+            /* Semi-transparent background */
+            padding: 2px 8px;
+            border-radius: 5px;
+            transition: 0.4s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Display file size label on hover over the preview container */
+        .file-preview div:hover .file-size-display {
+            opacity: 1;
+        }
+
+
+
+        @media (max-width: 768px) {
+            .file-preview div {
+                position: relative;
+                width: 80px;
+                height: 80px;
+                margin: 5px;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            .remove-file {
+                cursor: pointer;
+                color: white;
+                font-size: 9px;
+                position: absolute;
+                bottom: 6px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: #383760;
+                padding: 2px 10px;
+                border-radius: 5px;
+                transition: background-color 0.3s;
+            }
+
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="upload-container">
+        <h2>Upload Images to Discord</h2>
+        <div class="drag-area" id="drag-area">
+            Drag & Drop your images here, or click to select
+        </div>
+        <input type="file" id="file-input" class="file-input" multiple accept="image/*">
+        <div class="file-preview" id="file-preview"></div>
+        <div id="file-count">0 attached</div> <!-- Add this line to show the number of files -->
+        <button id="upload-button">Upload to Discord</button>
+        <div class="status" id="status"></div>
+        <div id="error-message" class="error-message"></div>
+    </div>
+
+
+    <script>
+        const dragArea = document.getElementById("drag-area");
+        const fileInput = document.getElementById("file-input");
+        const filePreview = document.getElementById("file-preview");
+        const uploadButton = document.getElementById("upload-button");
+        const statusDiv = document.getElementById("status");
+        const errorMessageDiv = document.getElementById("error-message");
+        const fileCountDiv = document.getElementById("file-count"); // To show the file count
+
+        let selectedFiles = [];
+
+        const MAX_FILES = 100;
+        const MAX_FILE_SIZE_MB = 8;
+
+        // Handle drag and drop events
+        dragArea.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dragArea.classList.add("dragging");
+        });
+
+        dragArea.addEventListener("dragleave", () => {
+            dragArea.classList.remove("dragging");
+        });
+
+        dragArea.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dragArea.classList.remove("dragging");
+            addFiles(e.dataTransfer.files);
+        });
+
+        // Open file input dialog on click
+        dragArea.addEventListener("click", () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener("change", (e) => {
+            addFiles(e.target.files);
+        });
+
+        function addFiles(newFiles) {
+            errorMessageDiv.textContent = ''; // Clear previous errors
+            const filesArray = Array.from(newFiles);
+            let invalidFiles = [];
+
+            filesArray.forEach((file) => {
+                if (selectedFiles.length < MAX_FILES &&
+                    file.size <= MAX_FILE_SIZE_MB * 1024 * 1024 &&
+                    file.type.startsWith("image/")) {
+                    // Add the file only if it is not already in selectedFiles
+                    if (!selectedFiles.some((f) => f.name === file.name && f.size === file.size)) {
+                        selectedFiles.push(file);
+                    }
+                } else {
+                    invalidFiles.push(file.name);
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                errorMessageDiv.textContent = `Some files are invalid or exceed limits: ${invalidFiles.join(", ")}`;
+            }
+
+            previewFiles(selectedFiles);
+
+            // Reset the file input value to allow re-adding the same file
+            fileInput.value = "";
+        }
+
+        function previewFiles(files) {
+            const existingImages = Array.from(filePreview.children);
+
+            // Remove any files that are no longer selected
+            existingImages.forEach((imgDiv) => {
+                if (!files.some((file) => file.name === imgDiv.dataset.filename)) {
+                    imgDiv.classList.add("preview-item-exit"); // Apply the exit animation
+                    setTimeout(() => imgDiv.remove(), 300); // Wait for the animation to finish before removing the element
+                }
+            });
+
+            files.forEach((file) => {
+                if (!existingImages.some((imgDiv) => imgDiv.dataset.filename === file.name)) {
+                    const filePreviewDiv = document.createElement("div");
+                    filePreviewDiv.classList.add("preview-item-enter");
+                    filePreviewDiv.dataset.filename = file.name;
+
+                    const sizeInMB = file.size / (1024 * 1024);
+                    let fileSizeDisplay = sizeInMB < 1
+                        ? `${Math.round(file.size / 1024)} KB`
+                        : `${sizeInMB.toFixed(1)} MB`;
+
+                    const fileReader = new FileReader();
+                    fileReader.onload = () => {
+                        const img = document.createElement("img");
+                        img.src = fileReader.result;
+                        filePreviewDiv.appendChild(img);
+
+                        const fileSizeSpan = document.createElement("span");
+                        fileSizeSpan.textContent = fileSizeDisplay;
+                        fileSizeSpan.classList.add("file-size-display");
+                        filePreviewDiv.appendChild(fileSizeSpan);
+
+                        const removeButton = document.createElement("span");
+                        removeButton.textContent = "Remove";
+                        removeButton.classList.add("remove-file");
+                        removeButton.onclick = () => {
+                            selectedFiles = selectedFiles.filter(f => f.name !== file.name);
+                            previewFiles(selectedFiles); // Re-render the preview
+                        };
+
+                        filePreviewDiv.appendChild(removeButton);
+                        filePreview.appendChild(filePreviewDiv);
+                    };
+                    fileReader.readAsDataURL(file);
+                }
+            });
+
+            updateFileCount(); // Update the file count after previewing files
+        }
+
+
+
+        // Update the file count text
+        function updateFileCount() {
+            fileCountDiv.textContent = `${selectedFiles.length} attached`;
+        }
+
+        // Handle file upload
+        uploadButton.addEventListener("click", async () => {
+            if (selectedFiles.length === 0) {
+                alert("Please select some images to upload.");
+                return;
+            }
+
+            uploadButton.textContent = "Wait to Upload again";
+            uploadButton.disabled = true;
+            statusDiv.textContent = "Starting upload...";
+
+            try {
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    const formData = new FormData();
+                    formData.append("images", selectedFiles[i]);
+
+                    statusDiv.textContent = `Uploading ${i + 1} of ${selectedFiles.length}`;
+
+                    const response = await fetch("/upload", {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.success) {
+                        throw new Error(`Upload failed for image ${i + 1}`);
+                    }
+                }
+
+                // Success message
+                statusDiv.textContent = "All images uploaded successfully!";
+
+                // Apply green to black gradient animation style
+                statusDiv.style.backgroundImage = "linear-gradient(270deg, #258f55, #000, #258f55)";
+                statusDiv.style.backgroundSize = "200% 200%";
+                statusDiv.style.animation = "gradientSlide 3s infinite";
+
+                selectedFiles = [];
+                previewFiles(selectedFiles);
+
+                // Reset gradient to blue after 6 seconds
+                setTimeout(() => {
+                    statusDiv.textContent = "";
+                    statusDiv.style.backgroundImage = "linear-gradient(270deg, #213a5f, #000, #213a5f)";
+                    statusDiv.style.animation = ""; // Remove animation for static blue gradient
+                }, 3000);
+
+            } catch (error) {
+                statusDiv.textContent = "An error occurred during upload.";
+                console.error("Error during upload:", error);
+            } finally {
+                uploadButton.disabled = false;
+                uploadButton.textContent = "Upload to Discord";
+            }
+        });
+
+
+    </script>
+</body>
+
+
+</html>

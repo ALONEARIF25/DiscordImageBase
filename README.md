@@ -5,7 +5,8 @@ A web-based application for easy drag-and-drop image uploads with a live preview
 ##### Time took: `8hrs`
 
 ---
-[![Demo Video](demo/demo121.png)](demo/demo121.mp4)
+https://github.com/user-attachments/assets/5b80d5c6-0d0c-4f48-8b7e-1b6b4450f805
+
 
 
 ## Main Features

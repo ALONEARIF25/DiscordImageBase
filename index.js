@@ -4,13 +4,18 @@ import { join } from "path";
 import { createServer } from "http";
 import { Server as socketIO } from "socket.io";
 import { Client, GatewayIntentBits, AttachmentBuilder } from "discord.js";
+import "dotenv/config";
 
-const botToken = "";
-const channelId = "";
+const botToken = process.env.token;
+const channelId = process.env.cid;
+const manageUser = process.env.manageuser;
+const managePass = process.env.managepass;
 
 const app = express();
 const server = createServer(app);
 const io = new socketIO(server);
+
+app.use(express.json());
 
 const client = new Client({
   intents: [
@@ -20,10 +25,32 @@ const client = new Client({
   ],
 });
 
-let imageUrls = [];
+let imageUrls = new Set();
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
+
+const fetchAllMessages = async (channel) => {
+  let allMessages = [];
+  let lastMessageId = null;
+  let hasMoreMessages = true;
+
+  while (hasMoreMessages) {
+    const options = lastMessageId
+      ? { limit: 100, before: lastMessageId }
+      : { limit: 100 };
+    const messages = await channel.messages.fetch(options);
+
+    if (messages.size === 0) {
+      hasMoreMessages = false;
+    } else {
+      allMessages.push(...messages.values());
+      lastMessageId = messages.last().id;
+    }
+  }
+
+  return allMessages;
+};
 
 const refreshImageUrls = async () => {
   try {
@@ -34,136 +61,175 @@ const refreshImageUrls = async () => {
     }
 
     console.log(`Refreshing image URLs from channel: ${channel.name}`);
+    const messages = await fetchAllMessages(channel);
+    const tempImageUrls = [];
 
-    // Fetch messages in reverse chronological order
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const sortedMessages = Array.from(messages.values()).sort(
-      (a, b) => b.createdTimestamp - a.createdTimestamp
-    );
-
-    let tempImageUrls = [];
-
-    sortedMessages.forEach((message) => {
+    messages.forEach((message) => {
       if (message.embeds?.length > 0) {
         message.embeds.forEach((embed) => {
-          if (embed.image) tempImageUrls.push(embed.image.url);
-          if (embed.thumbnail) tempImageUrls.push(embed.thumbnail.url);
+          if (embed.image) tempImageUrls.unshift(embed.image.url);
+          if (embed.thumbnail) tempImageUrls.unshift(embed.thumbnail.url);
         });
       }
 
       message.attachments.forEach((attachment) => {
-        tempImageUrls.push(attachment.url);
+        tempImageUrls.unshift(attachment.url);
       });
     });
 
-    if (tempImageUrls.length > 0) {
-      imageUrls = tempImageUrls;
-      console.log(`Refreshed ${imageUrls.length} image URLs successfully`);
-      io.emit("newImages", imageUrls);
-    }
+    imageUrls = new Set(tempImageUrls);
+    io.emit("newImages", Array.from(imageUrls));
+    console.log(`Refreshed ${imageUrls.size} image URLs successfully`);
   } catch (error) {
     console.error("Error refreshing image URLs:", error);
   }
 };
 
-// Watch for new messages
 client.on("messageCreate", async (message) => {
   if (message.channel.id === channelId) {
-    let newImages = [];
+    const newImages = [];
 
     if (message.embeds?.length > 0) {
       message.embeds.forEach((embed) => {
-        if (embed.image) newImages.push(embed.image.url);
-        if (embed.thumbnail) newImages.push(embed.thumbnail.url);
+        if (embed.image) newImages.unshift(embed.image.url);
+        if (embed.thumbnail) newImages.unshift(embed.thumbnail.url);
       });
     }
 
     message.attachments.forEach((attachment) => {
-      newImages.push(attachment.url);
+      newImages.unshift(attachment.url);
     });
 
     if (newImages.length > 0) {
-      // Add new images to the beginning of the array
-      imageUrls = [...newImages, ...imageUrls];
+      newImages.forEach((url) => imageUrls.add(url));
       console.log(`Added ${newImages.length} new images`);
-      io.emit("newImages", imageUrls);
+      io.emit("newImages", Array.from(imageUrls));
     }
   }
 });
 
-// Watch for message deletions
 client.on("messageDelete", async (message) => {
   if (message.channel.id === channelId) {
-    let deletedUrls = [];
+    const deletedUrls = new Set();
 
     if (message.embeds?.length > 0) {
       message.embeds.forEach((embed) => {
-        if (embed.image) deletedUrls.push(embed.image.url);
-        if (embed.thumbnail) deletedUrls.push(embed.thumbnail.url);
+        if (embed.image) deletedUrls.add(embed.image.url);
+        if (embed.thumbnail) deletedUrls.add(embed.thumbnail.url);
       });
     }
 
     message.attachments.forEach((attachment) => {
-      deletedUrls.push(attachment.url);
+      deletedUrls.add(attachment.url);
     });
 
-    if (deletedUrls.length > 0) {
-      imageUrls = imageUrls.filter((url) => !deletedUrls.includes(url));
-      console.log(`Removed ${deletedUrls.length} images`);
-      io.emit("newImages", imageUrls);
+    if (deletedUrls.size > 0) {
+      deletedUrls.forEach((url) => imageUrls.delete(url));
+      console.log(`Removed ${deletedUrls.size} images`);
+      io.emit("newImages", Array.from(imageUrls));
     }
   }
 });
 
-// Watch for bulk message deletions
 client.on("messageDeleteBulk", async (messages) => {
-  let deletedUrls = [];
+  const deletedUrls = new Set();
 
   messages.forEach((message) => {
     if (message.channel.id === channelId) {
       if (message.embeds?.length > 0) {
         message.embeds.forEach((embed) => {
-          if (embed.image) deletedUrls.push(embed.image.url);
-          if (embed.thumbnail) deletedUrls.push(embed.thumbnail.url);
+          if (embed.image) deletedUrls.add(embed.image.url);
+          if (embed.thumbnail) deletedUrls.add(embed.thumbnail.url);
         });
       }
 
       message.attachments.forEach((attachment) => {
-        deletedUrls.push(attachment.url);
+        deletedUrls.add(attachment.url);
       });
     }
   });
 
-  if (deletedUrls.length > 0) {
-    imageUrls = imageUrls.filter((url) => !deletedUrls.includes(url));
-    console.log(`Removed ${deletedUrls.length} images from bulk deletion`);
-    io.emit("newImages", imageUrls);
+  if (deletedUrls.size > 0) {
+    deletedUrls.forEach((url) => imageUrls.delete(url));
+    console.log(`Removed ${deletedUrls.size} images from bulk deletion`);
+    io.emit("newImages", Array.from(imageUrls));
   }
 });
 
 app.use(express.static(join(process.cwd())));
 
 app.get("/", (req, res) => {
-  res.sendFile(join(process.cwd(), "public/index.html"));
+  res.sendFile(join(process.cwd(), "public/static.html"));
+});
+
+app.get("/upload", (req, res) => {
+  res.sendFile(join(process.cwd(), "public/upload.html"));
+});
+
+app.get("/manage", (req, res) => {
+  res.sendFile(join(process.cwd(), "public/manage.html"));
 });
 
 app.get("/images", (req, res) => {
-  res.json(imageUrls);
+  res.json(Array.from(imageUrls));
 });
 
-server.listen(3000, () => {
-  console.log("Server running at http://localhost:3000");
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
+  if (username === manageUser && password === managePass) {
+    res.status(200).send("Login successful");
+  } else {
+    res.status(401).send("Invalid username or password");
+  }
 });
 
-client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
-  await refreshImageUrls();
+app.delete("/delete", async (req, res) => {
+  const { imageUrl } = req.query;
+  if (!imageUrl) {
+    return res.status(400).send("Image URL is required");
+  }
 
-  // Refresh URLs every 6 hours
-  setInterval(refreshImageUrls, 6 * 60 * 60 * 1000);
+  try {
+    const channel = await client.channels.fetch(channelId);
+    const messages = await channel.messages.fetch({ limit: 100 });
+
+    let messageToDelete = null;
+    for (const msg of messages.values()) {
+      if (msg.embeds?.length > 0) {
+        const hasImage = msg.embeds.some(
+          (embed) =>
+            (embed.image && embed.image.url === imageUrl) ||
+            (embed.thumbnail && embed.thumbnail.url === imageUrl)
+        );
+        if (hasImage) {
+          messageToDelete = msg;
+          break;
+        }
+      }
+
+      if (msg.attachments.some((attachment) => attachment.url === imageUrl)) {
+        messageToDelete = msg;
+        break;
+      }
+    }
+
+    if (messageToDelete) {
+      await messageToDelete.delete();
+      imageUrls.delete(imageUrl);
+      io.emit("newImages", Array.from(imageUrls));
+      res.status(200).send("Image deleted successfully");
+    } else {
+      imageUrls.delete(imageUrl);
+      io.emit("newImages", Array.from(imageUrls));
+      res.status(200).send("Image URL removed from list");
+    }
+  } catch (error) {
+    console.error("Error deleting image:", error);
+    res.status(500).send("Error deleting image: " + error.message);
+  }
 });
 
-app.post("/upload", upload.array("images", 100), async (req, res) => {
+app.post("/upload", upload.array("images", 1600), async (req, res) => {
   const files = req.files;
   if (!files || files.length === 0) {
     return res.status(400).send("No files uploaded.");
@@ -194,45 +260,14 @@ app.post("/upload", upload.array("images", 100), async (req, res) => {
   res.json({ success: true, imageUrls: uploadedImageUrls });
 });
 
-client.login(botToken);
-
-// Middleware to handle file uploads
-app.post("/upload", upload.array("images", 100), async (req, res) => {
-  const files = req.files;
-  if (!files || files.length === 0) {
-    return res.status(400).send("No files uploaded.");
-  }
-
-  // Function to upload each file to Discord
-  const uploadToDiscord = async (file) => {
-    const attachment = new MessageAttachment(file.buffer, file.originalname); // Use file buffer from memory and original name
-
-    try {
-      const channel = await client.channels.fetch(channelId);
-
-      // Send the image as a message with the file attachment
-      const message = await channel.send({
-        files: [attachment], // Attach the image file from memory
-      });
-
-      console.log(`Uploaded image to Discord: ${message.url}`);
-      return message.url; // Return the image URL after upload
-    } catch (error) {
-      console.error("Error uploading image to Discord:", error);
-      return null;
-    }
-  };
-
-  const imageUrls = [];
-
-  // Upload images one by one and keep track of the URLs
-  for (let i = 0; i < files.length; i++) {
-    const imageUrl = await uploadToDiscord(files[i]);
-    if (imageUrl) {
-      imageUrls.push(imageUrl);
-    }
-  }
-
-  // Send the image URLs as a response
-  res.json({ success: true, imageUrls });
+server.listen(3000, () => {
+  console.log("Server running at http://localhost:3000");
 });
+
+client.once("ready", async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  await refreshImageUrls();
+  setInterval(refreshImageUrls, 6 * 60 * 60 * 1000);
+});
+
+client.login(botToken);

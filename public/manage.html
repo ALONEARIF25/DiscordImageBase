@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Image Gallery</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #1d1f27;
+            margin: 5px;
+            color: aliceblue;
+        }
+
+
+
+        .gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .gallery-item {
+            height: 200px;
+            width: 300px;
+            margin: 10px;
+            position: relative;
+        }
+
+        .gallery img {
+            height: 100%;
+            width: 100%;
+            border-radius: 15px;
+            object-fit: cover;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .gallery img.loaded {
+            opacity: 1;
+        }
+
+        /* Skeleton Animation */
+        @keyframes skeleton-loading {
+            0% {
+                background-color: #2b324d;
+            }
+
+            50% {
+                background-color: #424175;
+            }
+
+            100% {
+                background-color: #2b324d;
+            }
+        }
+
+        .gallery .skeleton {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            border-radius: 15px;
+            background-color: #f0f0f0;
+            animation: skeleton-loading 1s infinite;
+        }
+
+        .image-size {
+            position: absolute;
+            bottom: 10px;
+            /* Change from top to bottom */
+            right: 10px;
+            background-color: rgba(56, 55, 96, 0.2);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 7px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 400;
+            font-size: 12px;
+            backdrop-filter: blur(5px);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .gallery-item:hover .image-size {
+            opacity: 1;
+        }
+
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(27, 27, 27, 0.3);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 7px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 400;
+            font-size: 11px;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: background-color 0.3s ease-in-out;
+        }
+
+        .delete-button:hover {
+            background-color: rgba(255, 0, 0, 0.3);
+        }
+
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            overflow: hidden;
+            backdrop-filter: blur(30px);
+            /* Ensure the background stays within bounds */
+        }
+
+        .login-overlay::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('bg.png');
+            background-size: cover;
+            background-position: center;
+            filter: blur(50px);
+            z-index: -1;
+            opacity: 0.5;
+            /* Send the blurred background behind the content */
+        }
+
+        .login-form {
+            background-color: #0c1d2e;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            margin: 15px;
+            position: relative;
+            border: 1px solid #f0ffff1f;
+        }
+
+        .login-form input {
+            width: 200px;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: aliceblue;
+            font-family: 'Poppins';
+        }
+
+        .login-form button {
+            padding: 10px 20px;
+            background-color: #3f509a;
+            color: azure;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Poppins';
+            font-size: 12px;
+        }
+
+        /* HTML: <div class="loader"></div> */
+        .loader {
+            width: 10px;
+            padding: 3px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: azure;
+            --_m:
+                conic-gradient(#0000 10%, #000),
+                linear-gradient(#000 0 0) content-box;
+            -webkit-mask: var(--_m);
+            mask: var(--_m);
+            -webkit-mask-composite: source-out;
+            mask-composite: subtract;
+            animation: l3 1s infinite linear;
+        }
+
+        /* Hide scrollbar for Webkit browsers (Chrome, Safari, etc.) */
+        html,
+        body {
+            overflow: scroll;
+            /* Ensure scrolling is still possible */
+        }
+
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar {
+            display: none;
+            /* Hide the scrollbar */
+        }
+
+        /* For Firefox */
+        html,
+        body {
+            scrollbar-width: none;
+            /* Hide scrollbar */
+            scrollbar-color: transparent transparent;
+            /* Make the scrollbar transparent */
+        }
+
+
+
+        @keyframes l3 {
+            to {
+                transform: rotate(1turn)
+            }
+        }
+
+        @media (max-width: 768px) {
+            .gallery-item {
+                height: 239px;
+                width: 370px;
+                margin: 10px;
+                position: relative;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-overlay" id="loginOverlay">
+        <div class="login-form">
+            <h2>Login</h2>
+            <input type="text" id="username" placeholder="Username" />
+            <input type="password" id="password" placeholder="Password" /> <br>
+            <button onclick="login()">Log In</button>
+        </div>
+    </div>
+
+    <div class="gallery" id="imageGallery">
+        <!-- Images will be dynamically inserted here -->
+    </div>
+
+    <!-- Add Socket.IO client script -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        let imageUrls = [];
+        let galleryItems = [];
+        let observer;
+        let isLoggedIn = false;
+
+        // Hide gallery by default (before login)
+        document.getElementById('imageGallery').style.display = 'none';
+
+        // Connect to Socket.IO server (Only after login)
+        const socket = io('http://localhost:3000');
+
+        // Listen for real-time updates from the server, but only if logged in
+        socket.on('newImages', (newImageUrls) => {
+            if (isLoggedIn && !arraysEqual(newImageUrls, imageUrls)) {
+                const gallery = document.getElementById('imageGallery');
+                const scrollTop = gallery.scrollTop;
+                // Reverse the array to show newest images first
+                imageUrls = [...newImageUrls].reverse();
+                updateGallery(gallery, scrollTop);
+            }
+        });
+
+        // Function to update the gallery with new images
+        function updateGallery(gallery, scrollTop) {
+            gallery.innerHTML = '';
+            galleryItems = [];
+
+            // Set up Intersection Observer
+            observer = new IntersectionObserver(
+                (entries) => {
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            loadAndDisplayImage(entry.target);
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                },
+                {
+                    rootMargin: '0px',
+                    threshold: 0.5,
+                }
+            );
+
+            // Create the gallery elements and observe them
+            imageUrls.forEach((url) => {
+                const galleryItem = document.createElement('div');
+                galleryItem.classList.add('gallery-item');
+                galleryItem.dataset.src = url;
+
+                // Add the image size display
+                const imageSizeElement = document.createElement('div');
+                imageSizeElement.classList.add('image-size');
+                imageSizeElement.textContent = '';
+                galleryItem.appendChild(imageSizeElement);
+
+                // Add the delete button
+                if (isLoggedIn) {
+                    const deleteButton = document.createElement('div');
+                    deleteButton.classList.add('delete-button');
+                    deleteButton.textContent = 'Delete';
+
+                    deleteButton.onclick = () => {
+                        deleteButton.innerHTML = `<div class="loader"></div>`;
+                        deleteImage(url, deleteButton);
+                    };
+
+                    galleryItem.appendChild(deleteButton);
+                }
+
+                gallery.appendChild(galleryItem);
+                observer.observe(galleryItem);
+                galleryItems.push(galleryItem);
+            });
+
+            // Restore the scroll position
+            gallery.scrollTop = scrollTop;
+        }
+
+        // Function to load and display an image
+        async function loadAndDisplayImage(element) {
+            const img = document.createElement('img');
+            img.src = element.dataset.src;
+            img.alt = "Discord Image";
+
+            const skeleton = document.createElement('div');
+            skeleton.classList.add('skeleton');
+            element.appendChild(skeleton);
+
+            img.addEventListener('load', async () => {
+                skeleton.remove();
+                img.classList.add('loaded');
+
+                const response = await fetch(element.dataset.src);
+                const contentLength = response.headers.get('content-length');
+                const imageSizeInMB = (contentLength / (1024 * 1024)).toFixed(2);
+                const imageSizeInKB = (contentLength / 1024).toFixed(0);
+
+                if (imageSizeInMB < 1) {
+                    element.dataset.imageSize = `${imageSizeInKB} KB`;
+                } else {
+                    element.dataset.imageSize = `${imageSizeInMB} MB`;
+                }
+
+                const imageSizeElement = element.querySelector('.image-size');
+                imageSizeElement.textContent = element.dataset.imageSize;
+            });
+            element.appendChild(img);
+        }
+
+        // Function to delete an image
+        async function deleteImage(imageUrl) {
+            try {
+                const response = await fetch(`/delete?imageUrl=${encodeURIComponent(imageUrl)}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    console.log(`Deleted image: ${imageUrl}`);
+                    imageUrls = imageUrls.filter((url) => url !== imageUrl);
+                    updateGallery(document.getElementById('imageGallery'), 0);
+                } else {
+                    console.error(`Error deleting image: ${imageUrl}`);
+                }
+            } catch (error) {
+                console.error('Error deleting image:', error);
+            }
+        }
+
+        // Helper function to check if two arrays are equal
+        function arraysEqual(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) return false;
+            }
+            return true;
+        }
+
+        // Login function
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                if (response.ok) {
+                    isLoggedIn = true;
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    document.getElementById('imageGallery').style.display = 'flex';
+
+                    // Initial fetch to populate the gallery
+                    fetch('http://localhost:3000/images')
+                        .then(response => response.json())
+                        .then(data => {
+                            // Reverse the array to show newest images first
+                            imageUrls = [...data].reverse();
+                            updateGallery(document.getElementById('imageGallery'), 0);
+                        })
+                        .catch(error => console.error('Error loading initial images:', error));
+                } else {
+                    console.error('Login failed');
+                }
+            } catch (error) {
+                console.error('Error during login:', error);
+            }
+        }
+    </script>
+
+</body>
+
+</html>
